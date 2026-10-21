@@ -2,198 +2,405 @@
 <!DOCTYPE html>
 <html lang="sv">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f5f3ed">
-  <title>Viktkoll</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 600px;
-      margin: 0 auto;
-      padding: 20px;
-      background: #f5f3ed;
-      color: #292d29;
-    }
-    h1 { margin-bottom: 4px; }
-    .card {
-      background: white;
-      padding: 18px;
-      margin: 16px 0;
-      border-radius: 14px;
-    }
-    .value { font-size: 30px; font-weight: bold; }
-    label { display: block; margin: 12px 0 6px; }
-    input, button {
-      box-sizing: border-box;
-      width: 100%;
-      padding: 12px;
-      font-size: 16px;
-      border-radius: 8px;
-    }
-    input { border: 1px solid #aaa; }
-    button {
-      margin-top: 14px;
-      background: #315e49;
-      color: white;
-      border: 0;
-      cursor: pointer;
-    }
-    li { padding: 7px 0; }
-    .muted { color: #666; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f5f3ed">
+<title>Viktkoll</title>
+<style>
+:root { --bg:#f5f3ed; --green:#315e49; --ink:#292d29; --muted:#666; }
+* { box-sizing:border-box; }
+body {
+  font-family:Arial,sans-serif; max-width:650px; margin:auto;
+  padding:18px; background:var(--bg); color:var(--ink);
+}
+h1 { margin-bottom:4px; }
+h2 { font-size:19px; margin-top:0; }
+p { line-height:1.45; }
+.card { background:white; padding:18px; margin:15px 0; border-radius:14px; }
+.muted { color:var(--muted); font-size:14px; }
+.stats { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.stat { background:#f7f7f3; padding:13px; border-radius:10px; }
+.value { font-size:25px; font-weight:bold; margin-top:8px; }
+label { display:block; margin:13px 0 6px; font-weight:bold; }
+input,button {
+  font:inherit; width:100%; padding:12px; border-radius:8px;
+}
+input { border:1px solid #aaa; background:white; color:var(--ink); }
+button { border:0; background:var(--green); color:white; cursor:pointer; margin-top:12px; }
+button.secondary { background:#e9eee9; color:var(--ink); }
+button.danger { background:#8b3737; }
+button.small { width:auto; padding:7px 10px; margin:4px 4px 4px 0; font-size:14px; }
+.status { padding:12px; border-radius:9px; background:#e9eee9; }
+.status.warn { background:#fff0d7; }
+.status.good { background:#e2f1e5; }
+canvas { width:100%; height:230px; display:block; }
+.history-row { border-bottom:1px solid #eee; padding:10px 0; }
+.history-row:last-child { border-bottom:0; }
+.actions { display:flex; flex-wrap:wrap; gap:6px; }
+.actions button { width:auto; margin:4px 0; }
+hr { border:0; border-top:1px solid #eee; margin:18px 0; }
+@media(max-width:380px) {
+  body { padding:10px; }
+  .value { font-size:21px; }
+}
+</style>
 </head>
 <body>
-  <h1>Viktkoll</h1>
-  <p class="muted">Enkel koll. En dag i taget.</p>
+<h1>Viktkoll</h1>
+<p class="muted">Enkel koll. En dag i taget.</p>
 
-  <div class="card">
-    <p>Senaste vikt</p>
-    <div class="value" id="latest">— kg</div>
-    <p>7-dagarsmedel</p>
-    <div class="value" id="average">— kg</div>
-    <p id="coverage" class="muted">Inga registreringar ännu.</p>
+<div class="card">
+  <div class="stats">
+    <div class="stat">
+      <div class="muted">Senaste vikt</div>
+      <div class="value" id="latest">—</div>
+    </div>
+    <div class="stat">
+      <div class="muted">7-dagarsmedel</div>
+      <div class="value" id="average">—</div>
+    </div>
+    <div class="stat">
+      <div class="muted">Mål</div>
+      <div class="value" id="goalDisplay">84,0 kg</div>
+    </div>
+    <div class="stat">
+      <div class="muted">Från mål till medel</div>
+      <div class="value" id="difference">—</div>
+    </div>
   </div>
+  <p id="coverage" class="muted">Inga registreringar ännu.</p>
+  <div id="status" class="status">Registrera en vikt för att börja.</div>
+</div>
 
-  <div class="card">
-    <h2>Registrera vikt</h2>
-    <label for="date">Datum</label>
-    <input id="date" type="date">
-    <label for="weight">Vikt i kg</label>
-    <input id="weight" type="number" min="30" max="300"
-           step="0.1" placeholder="Exempel: 88,7">
-    <button id="save">Spara vikt</button>
-    <p id="message" aria-live="polite"></p>
-  </div>
+<div class="card">
+  <h2>Registrera vikt</h2>
+  <label for="date">Datum</label>
+  <input id="date" type="date">
+  <label for="weight">Vikt i kg</label>
+  <input id="weight" type="number" min="30" max="300"
+         step="0.1" placeholder="Exempel: 88,7">
+  <button id="save">Spara vikt</button>
+  <p id="message" class="muted" aria-live="polite"></p>
+</div>
 
-  <div class="card">
-    <h2>Historik</h2>
-    <ul id="history"></ul>
-  </div>
+<div class="card">
+  <h2>Viktutveckling</h2>
+  <p class="muted">Registrerade vikter och målvikten.</p>
+  <canvas id="chart" aria-label="Diagram över viktutvecklingen"></canvas>
+  <p id="chartNote" class="muted"></p>
+</div>
 
-  <script>
-    const KEY = "viktkoll-registreringar";
-    const dateInput = document.getElementById("date");
-    const weightInput = document.getElementById("weight");
-    const message = document.getElementById("message");
+<div class="card">
+  <h2>Historik</h2>
+  <div id="history"></div>
+</div>
 
-    function today() {
-      const d = new Date();
-      return [
-        d.getFullYear(),
-        String(d.getMonth() + 1).padStart(2, "0"),
-        String(d.getDate()).padStart(2, "0")
-      ].join("-");
+<div class="card">
+  <h2>Inställningar</h2>
+  <label for="goal">Målvikt (kg)</label>
+  <input id="goal" type="number" min="30" max="300" step="0.1">
+  <label for="threshold">Aktiveringsgräns (kg)</label>
+  <input id="threshold" type="number" min="30" max="300" step="0.1">
+  <p class="muted">
+    Gränsen jämförs med sjudagarsmedlet, inte med en enskild vägning.
+    En tydlig signal kräver minst 5 registrerade dagar av de senaste 7.
+  </p>
+  <button id="saveSettings">Spara inställningar</button>
+  <p id="settingsMessage" class="muted" aria-live="polite"></p>
+</div>
+
+<div class="card">
+  <h2>Säkerhetskopia</h2>
+  <p class="muted">
+    Exportera dina uppgifter regelbundet och spara filen på en säker plats.
+    Import ersätter de registreringar och inställningar som finns i appen.
+  </p>
+  <button id="export">Exportera säkerhetskopia</button>
+  <label for="importFile">Återställ från säkerhetskopia</label>
+  <input id="importFile" type="file" accept=".json,application/json">
+  <button id="import" class="secondary">Importera säkerhetskopia</button>
+  <p id="backupMessage" class="muted" aria-live="polite"></p>
+</div>
+
+<script>
+(() => {
+  const DATA_KEY = "viktkoll-registreringar";
+  const SETTINGS_KEY = "viktkoll-installningar";
+  const $ = id => document.getElementById(id);
+
+  function today() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  }
+
+  function readEntries() {
+    try {
+      const data = JSON.parse(localStorage.getItem(DATA_KEY) || "[]");
+      return Array.isArray(data) ? data.filter(e =>
+        e && typeof e.date === "string" &&
+        Number.isFinite(e.weight) && e.weight >= 30 && e.weight <= 300
+      ) : [];
+    } catch { return []; }
+  }
+
+  function readSettings() {
+    try {
+      const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+      return {
+        goal: validSetting(s.goal, 84),
+        threshold: validSetting(s.threshold, 85)
+      };
+    } catch { return {goal:84, threshold:85}; }
+  }
+
+  function validSetting(value, fallback) {
+    return Number.isFinite(value) && value >= 30 && value <= 300
+      ? value : fallback;
+  }
+
+  function fmt(n) {
+    return n.toLocaleString("sv-SE", {
+      minimumFractionDigits:1, maximumFractionDigits:1
+    });
+  }
+
+  function daysAgo(date, days) {
+    const d = new Date(date + "T12:00:00");
+    d.setDate(d.getDate() - days);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  }
+
+  function averageData(entries) {
+    const start = daysAgo(today(), 6);
+    const recent = entries.filter(e => e.date >= start && e.date <= today());
+    const avg = recent.length
+      ? recent.reduce((sum,e) => sum + e.weight, 0) / recent.length
+      : null;
+    return {recent, avg};
+  }
+
+  function renderChart(entries, goal) {
+    const canvas = $("chart");
+    const ctx = canvas.getContext("2d");
+    const width = Math.max(280, canvas.clientWidth);
+    const height = 230;
+    const scale = window.devicePixelRatio || 1;
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    ctx.scale(scale, scale);
+    ctx.clearRect(0,0,width,height);
+
+    const sorted = entries.slice().sort((a,b) => a.date.localeCompare(b.date));
+    if (!sorted.length) {
+      $("chartNote").textContent = "Diagrammet visas när du har registrerat vikter.";
+      return;
     }
 
-    dateInput.value = today();
+    const values = sorted.map(e => e.weight).concat([goal]);
+    let min = Math.min(...values) - 1;
+    let max = Math.max(...values) + 1;
+    if (max - min < 2) { min -= 1; max += 1; }
 
-    function load() {
-      try {
-        return JSON.parse(localStorage.getItem(KEY) || "[]");
-      } catch {
-        return [];
-      }
+    const left = 38, right = width - 12, top = 15, bottom = height - 28;
+    const y = v => bottom - ((v-min)/(max-min))*(bottom-top);
+    const x = i => sorted.length === 1 ? (left+right)/2 :
+      left + i*(right-left)/(sorted.length-1);
+
+    ctx.font = "11px Arial";
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#666";
+    for (let i=0;i<=4;i++) {
+      const v = min + (max-min)*i/4;
+      const yy = y(v);
+      ctx.strokeStyle = "#e6e6e2";
+      ctx.beginPath(); ctx.moveTo(left,yy); ctx.lineTo(right,yy); ctx.stroke();
+      ctx.fillText(fmt(v), left-6, yy+4);
     }
 
-    function fmt(n) {
-      return n.toLocaleString("sv-SE", {
-        minimumFractionDigits: 1,
-        maximumFractionDigits: 1
-      });
+    ctx.setLineDash([5,4]);
+    ctx.strokeStyle = "#315e49";
+    ctx.beginPath(); ctx.moveTo(left,y(goal)); ctx.lineTo(right,y(goal)); ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.strokeStyle = "#315e49";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    sorted.forEach((e,i) => {
+      if (i===0) ctx.moveTo(x(i),y(e.weight));
+      else ctx.lineTo(x(i),y(e.weight));
+    });
+    ctx.stroke();
+
+    sorted.forEach((e,i) => {
+      ctx.fillStyle = "#315e49";
+      ctx.beginPath(); ctx.arc(x(i),y(e.weight),3.5,0,Math.PI*2); ctx.fill();
+    });
+
+    ctx.fillStyle = "#666";
+    ctx.textAlign = "left";
+    ctx.fillText(sorted[0].date.slice(5), left, height-8);
+    ctx.textAlign = "right";
+    ctx.fillText(sorted[sorted.length-1].date.slice(5), right, height-8);
+    $("chartNote").textContent = "Streckad linje = målvikten. Visar alla registrerade vägningar.";
+  }
+
+  function render() {
+    const entries = readEntries().sort((a,b) => b.date.localeCompare(a.date));
+    const settings = readSettings();
+    const {recent, avg} = averageData(entries);
+
+    $("latest").textContent = entries.length ? fmt(entries[0].weight) + " kg" : "—";
+    $("average").textContent = avg === null ? "—" : fmt(avg) + " kg";
+    $("goalDisplay").textContent = fmt(settings.goal) + " kg";
+    $("difference").textContent = avg === null ? "—" :
+      (avg-settings.goal > 0 ? "+" : "") + fmt(avg-settings.goal) + " kg";
+    $("coverage").textContent = `${recent.length} av 7 dagar registrerade i sjudagarsunderlaget.`;
+
+    const status = $("status");
+    status.className = "status";
+    if (recent.length < 5) {
+      status.textContent = "Underlaget är ofullständigt. Registrera fler dagar innan du drar slutsatser.";
+      status.classList.add("warn");
+    } else if (avg >= settings.threshold) {
+      status.textContent = "Aktiveringsgränsen är nådd. Överväg en planerad, hållbar justering av vanorna under 14 dagar. Ät tillräckligt och undvik extrema begränsningar.";
+      status.classList.add("warn");
+    } else {
+      status.textContent = "Aktiveringsgränsen är inte nådd. Fortsätt med dina vanliga vanor och följ utvecklingen.";
+      status.classList.add("good");
     }
 
-    function render() {
-      const entries = load().sort((a, b) =>
-        b.date.localeCompare(a.date)
-      );
-
-      document.getElementById("latest").textContent =
-        entries.length ? fmt(entries[0].weight) + " kg" : "— kg";
-
-      const now = new Date(today() + "T12:00:00");
-      const start = new Date(now);
-      start.setDate(start.getDate() - 6);
-      const startDate = [
-        start.getFullYear(),
-        String(start.getMonth() + 1).padStart(2, "0"),
-        String(start.getDate()).padStart(2, "0")
-      ].join("-");
-
-      const recent = entries.filter(e =>
-        e.date >= startDate && e.date <= today()
-      );
-      const avg = recent.length
-        ? recent.reduce((sum, e) => sum + e.weight, 0) / recent.length
-        : null;
-
-      document.getElementById("average").textContent =
-        avg === null ? "— kg" : fmt(avg) + " kg";
-
-      document.getElementById("coverage").textContent =
-        recent.length + " av 7 dagar registrerade";
-
-      const history = document.getElementById("history");
-      history.replaceChildren();
-
-      if (!entries.length) {
-        const li = document.createElement("li");
-        li.textContent = "Din historik visas här.";
-        history.appendChild(li);
-      }
-
+    const history = $("history");
+    history.replaceChildren();
+    if (!entries.length) {
+      history.textContent = "Din historik visas här.";
+    } else {
       entries.forEach(e => {
-        const li = document.createElement("li");
-        li.textContent = e.date + " – " + fmt(e.weight) + " kg ";
+        const row = document.createElement("div");
+        row.className = "history-row";
+        const title = document.createElement("div");
+        title.textContent = `${e.date} – ${fmt(e.weight)} kg`;
+        row.appendChild(title);
+        const actions = document.createElement("div");
+        actions.className = "actions";
 
         const edit = document.createElement("button");
+        edit.className = "small secondary";
         edit.textContent = "Ändra";
-        edit.style.width = "auto";
-        edit.style.marginLeft = "8px";
         edit.onclick = () => {
-          dateInput.value = e.date;
-          weightInput.value = e.weight;
-          message.textContent = "Ändra vikten och spara igen.";
+          $("date").value = e.date;
+          $("weight").value = e.weight;
+          $("message").textContent = "Ändra värdet och spara igen.";
+          $("date").focus();
         };
 
         const del = document.createElement("button");
+        del.className = "small danger";
         del.textContent = "Ta bort";
-        del.style.width = "auto";
-        del.style.marginLeft = "8px";
         del.onclick = () => {
-          if (confirm("Ta bort registreringen för " + e.date + "?")) {
-            localStorage.setItem(KEY, JSON.stringify(
-              load().filter(x => x.date !== e.date)
+          if (confirm(`Ta bort registreringen ${e.date}?`)) {
+            localStorage.setItem(DATA_KEY, JSON.stringify(
+              readEntries().filter(x => x.date !== e.date)
             ));
             render();
           }
         };
-
-        li.append(edit, del);
-        history.appendChild(li);
+        actions.append(edit,del);
+        row.appendChild(actions);
+        history.appendChild(row);
       });
     }
 
-    document.getElementById("save").onclick = () => {
-      const date = dateInput.value;
-      const weight = Number(weightInput.value);
+    $("goal").value = settings.goal;
+    $("threshold").value = settings.threshold;
+    renderChart(entries, settings.goal);
+  }
 
-      if (!date || !weightInput.value ||
-          !Number.isFinite(weight) || weight < 30 || weight > 300) {
-        message.textContent = "Ange datum och en giltig vikt.";
-        return;
-      }
+  $("date").value = today();
 
-      const entries = load().filter(e => e.date !== date);
-      entries.push({ date, weight });
-      localStorage.setItem(KEY, JSON.stringify(entries));
-
-      weightInput.value = "";
-      message.textContent = "Vikten är sparad på den här enheten.";
-      render();
-    };
-
+  $("save").onclick = () => {
+    const date = $("date").value;
+    const raw = $("weight").value.replace(",",".");
+    const weight = Number(raw);
+    if (!date || !$("weight").value.trim() ||
+        !Number.isFinite(weight) || weight < 30 || weight > 300) {
+      $("message").textContent = "Ange ett datum och en giltig vikt mellan 30 och 300 kg.";
+      return;
+    }
+    const entries = readEntries().filter(e => e.date !== date);
+    entries.push({date,weight});
+    localStorage.setItem(DATA_KEY,JSON.stringify(entries));
+    $("weight").value = "";
+    $("message").textContent = "Vikten är sparad på den här enheten.";
     render();
-  </script>
+  };
+
+  $("saveSettings").onclick = () => {
+    const goal = Number($("goal").value);
+    const threshold = Number($("threshold").value);
+    if (!Number.isFinite(goal) || goal < 30 || goal > 300 ||
+        !Number.isFinite(threshold) || threshold < 30 || threshold > 300) {
+      $("settingsMessage").textContent = "Ange giltiga vikter mellan 30 och 300 kg.";
+      return;
+    }
+    localStorage.setItem(SETTINGS_KEY,JSON.stringify({goal,threshold}));
+    $("settingsMessage").textContent = "Inställningarna är sparade.";
+    render();
+  };
+
+  $("export").onclick = () => {
+    const backup = {
+      format:"viktkoll-backup-v1",
+      exportedAt:new Date().toISOString(),
+      entries:readEntries(),
+      settings:readSettings()
+    };
+    const blob = new Blob([JSON.stringify(backup,null,2)],{type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "viktkoll-sakerhetskopia.json";
+    a.click();
+    URL.revokeObjectURL(url);
+    $("backupMessage").textContent = "Säkerhetskopian har laddats ner. Spara filen på en säker plats.";
+  };
+
+  $("import").onclick = () => {
+    const file = $("importFile").files[0];
+    if (!file) {
+      $("backupMessage").textContent = "Välj först en säkerhetskopia.";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const backup = JSON.parse(reader.result);
+        if (backup.format !== "viktkoll-backup-v1" ||
+            !Array.isArray(backup.entries) ||
+            !backup.entries.every(e => e &&
+              typeof e.date === "string" &&
+              /^\d{4}-\d{2}-\d{2}$/.test(e.date) &&
+              Number.isFinite(e.weight) && e.weight >= 30 && e.weight <= 300)) {
+          throw new Error("Ogiltig fil");
+        }
+        if (!confirm("Importen ersätter befintliga registreringar och inställningar. Vill du fortsätta?")) return;
+        localStorage.setItem(DATA_KEY,JSON.stringify(backup.entries));
+        const s = backup.settings || {};
+        localStorage.setItem(SETTINGS_KEY,JSON.stringify({
+          goal:validSetting(s.goal,84),
+          threshold:validSetting(s.threshold,85)
+        }));
+        $("backupMessage").textContent = "Säkerhetskopian är återställd.";
+        render();
+      } catch {
+        $("backupMessage").textContent = "Filen kunde inte läsas. Kontrollera att det är en Viktkoll-säkerhetskopia.";
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  window.addEventListener("resize", () => renderChart(readEntries(),readSettings().goal));
+  render();
+})();
+</script>
 </body>
 </html>
