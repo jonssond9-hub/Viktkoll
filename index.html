@@ -1,0 +1,199 @@
+
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f3ed">
+  <title>Viktkoll</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f3ed;
+      color: #292d29;
+    }
+    h1 { margin-bottom: 4px; }
+    .card {
+      background: white;
+      padding: 18px;
+      margin: 16px 0;
+      border-radius: 14px;
+    }
+    .value { font-size: 30px; font-weight: bold; }
+    label { display: block; margin: 12px 0 6px; }
+    input, button {
+      box-sizing: border-box;
+      width: 100%;
+      padding: 12px;
+      font-size: 16px;
+      border-radius: 8px;
+    }
+    input { border: 1px solid #aaa; }
+    button {
+      margin-top: 14px;
+      background: #315e49;
+      color: white;
+      border: 0;
+      cursor: pointer;
+    }
+    li { padding: 7px 0; }
+    .muted { color: #666; }
+  </style>
+</head>
+<body>
+  <h1>Viktkoll</h1>
+  <p class="muted">Enkel koll. En dag i taget.</p>
+
+  <div class="card">
+    <p>Senaste vikt</p>
+    <div class="value" id="latest">— kg</div>
+    <p>7-dagarsmedel</p>
+    <div class="value" id="average">— kg</div>
+    <p id="coverage" class="muted">Inga registreringar ännu.</p>
+  </div>
+
+  <div class="card">
+    <h2>Registrera vikt</h2>
+    <label for="date">Datum</label>
+    <input id="date" type="date">
+    <label for="weight">Vikt i kg</label>
+    <input id="weight" type="number" min="30" max="300"
+           step="0.1" placeholder="Exempel: 88,7">
+    <button id="save">Spara vikt</button>
+    <p id="message" aria-live="polite"></p>
+  </div>
+
+  <div class="card">
+    <h2>Historik</h2>
+    <ul id="history"></ul>
+  </div>
+
+  <script>
+    const KEY = "viktkoll-registreringar";
+    const dateInput = document.getElementById("date");
+    const weightInput = document.getElementById("weight");
+    const message = document.getElementById("message");
+
+    function today() {
+      const d = new Date();
+      return [
+        d.getFullYear(),
+        String(d.getMonth() + 1).padStart(2, "0"),
+        String(d.getDate()).padStart(2, "0")
+      ].join("-");
+    }
+
+    dateInput.value = today();
+
+    function load() {
+      try {
+        return JSON.parse(localStorage.getItem(KEY) || "[]");
+      } catch {
+        return [];
+      }
+    }
+
+    function fmt(n) {
+      return n.toLocaleString("sv-SE", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1
+      });
+    }
+
+    function render() {
+      const entries = load().sort((a, b) =>
+        b.date.localeCompare(a.date)
+      );
+
+      document.getElementById("latest").textContent =
+        entries.length ? fmt(entries[0].weight) + " kg" : "— kg";
+
+      const now = new Date(today() + "T12:00:00");
+      const start = new Date(now);
+      start.setDate(start.getDate() - 6);
+      const startDate = [
+        start.getFullYear(),
+        String(start.getMonth() + 1).padStart(2, "0"),
+        String(start.getDate()).padStart(2, "0")
+      ].join("-");
+
+      const recent = entries.filter(e =>
+        e.date >= startDate && e.date <= today()
+      );
+      const avg = recent.length
+        ? recent.reduce((sum, e) => sum + e.weight, 0) / recent.length
+        : null;
+
+      document.getElementById("average").textContent =
+        avg === null ? "— kg" : fmt(avg) + " kg";
+
+      document.getElementById("coverage").textContent =
+        recent.length + " av 7 dagar registrerade";
+
+      const history = document.getElementById("history");
+      history.replaceChildren();
+
+      if (!entries.length) {
+        const li = document.createElement("li");
+        li.textContent = "Din historik visas här.";
+        history.appendChild(li);
+      }
+
+      entries.forEach(e => {
+        const li = document.createElement("li");
+        li.textContent = e.date + " – " + fmt(e.weight) + " kg ";
+
+        const edit = document.createElement("button");
+        edit.textContent = "Ändra";
+        edit.style.width = "auto";
+        edit.style.marginLeft = "8px";
+        edit.onclick = () => {
+          dateInput.value = e.date;
+          weightInput.value = e.weight;
+          message.textContent = "Ändra vikten och spara igen.";
+        };
+
+        const del = document.createElement("button");
+        del.textContent = "Ta bort";
+        del.style.width = "auto";
+        del.style.marginLeft = "8px";
+        del.onclick = () => {
+          if (confirm("Ta bort registreringen för " + e.date + "?")) {
+            localStorage.setItem(KEY, JSON.stringify(
+              load().filter(x => x.date !== e.date)
+            ));
+            render();
+          }
+        };
+
+        li.append(edit, del);
+        history.appendChild(li);
+      });
+    }
+
+    document.getElementById("save").onclick = () => {
+      const date = dateInput.value;
+      const weight = Number(weightInput.value);
+
+      if (!date || !weightInput.value ||
+          !Number.isFinite(weight) || weight < 30 || weight > 300) {
+        message.textContent = "Ange datum och en giltig vikt.";
+        return;
+      }
+
+      const entries = load().filter(e => e.date !== date);
+      entries.push({ date, weight });
+      localStorage.setItem(KEY, JSON.stringify(entries));
+
+      weightInput.value = "";
+      message.textContent = "Vikten är sparad på den här enheten.";
+      render();
+    };
+
+    render();
+  </script>
+</body>
+</html>
