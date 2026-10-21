@@ -33,6 +33,7 @@ button.small { width:auto; padding:7px 10px; margin:4px 4px 4px 0; font-size:14p
 .status { padding:12px; border-radius:9px; background:#e9eee9; }
 .status.warn { background:#fff0d7; }
 .status.good { background:#e2f1e5; }
+.status.danger { background:#f7dddd; }
 canvas { width:100%; height:230px; display:block; }
 .history-row { border-bottom:1px solid #eee; padding:10px 0; }
 .history-row:last-child { border-bottom:0; }
@@ -99,12 +100,19 @@ hr { border:0; border-top:1px solid #eee; margin:18px 0; }
   <h2>Inställningar</h2>
   <label for="goal">Målvikt (kg)</label>
   <input id="goal" type="number" min="30" max="300" step="0.1">
-  <label for="threshold">Aktiveringsgräns (kg)</label>
-  <input id="threshold" type="number" min="30" max="300" step="0.1">
-  <p class="muted">
-    Gränsen jämförs med sjudagarsmedlet, inte med en enskild vägning.
-    En tydlig signal kräver minst 5 registrerade dagar av de senaste 7.
-  </p>
+ 
+<label for="threshold">Aktiveringsgräns (kg)</label>
+<input id="threshold" type="number" min="30" max="300" step="0.1">
+
+<label for="resetThreshold">Återställningsgräns (kg)</label>
+<input id="resetThreshold" type="number" min="30" max="300" step="0.1">
+
+<p class="muted">
+  Lampan tänds när sjudagarsmedlet når aktiveringsgränsen.
+  Den släcks först när medlet sjunker till eller under
+  återställningsgränsen.
+</p>
+
   <button id="saveSettings">Spara inställningar</button>
   <p id="settingsMessage" class="muted" aria-live="polite"></p>
 </div>
@@ -146,11 +154,18 @@ hr { border:0; border-top:1px solid #eee; margin:18px 0; }
   function readSettings() {
     try {
       const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+      const threshold = validSetting(s.threshold, 85);
+      let reset = validSetting(s.reset, 83);
+      if (reset >= threshold) reset = Math.min(83, threshold - 0.1);
+
       return {
         goal: validSetting(s.goal, 84),
-        threshold: validSetting(s.threshold, 85)
+        threshold,
+        reset
       };
-    } catch { return {goal:84, threshold:85}; }
+    } catch {
+      return {goal:84, threshold:85, reset:83};
+    }
   }
 
   function validSetting(value, fallback) {
@@ -256,18 +271,35 @@ hr { border:0; border-top:1px solid #eee; margin:18px 0; }
       (avg-settings.goal > 0 ? "+" : "") + fmt(avg-settings.goal) + " kg";
     $("coverage").textContent = `${recent.length} av 7 dagar registrerade i sjudagarsunderlaget.`;
 
-    const status = $("status");
+    
+const status = $("status");
     status.className = "status";
-    if (recent.length < 5) {
+
+    let dietActive = localStorage.getItem("viktkoll-diet-aktiv") === "true";
+
+    if (recent.length >= 5 && avg !== null) {
+      if (avg >= settings.threshold) {
+        dietActive = true;
+      } else if (avg <= settings.reset) {
+        dietActive = false;
+      }
+      localStorage.setItem("viktkoll-diet-aktiv", String(dietActive));
+    }
+
+    if (dietActive) {
+      status.textContent = "🔴 Dags för diet. Följ din planerade, hållbara justering. Ät tillräckligt och undvik extrema begränsningar.";
+      status.classList.add("danger");
+      if (recent.length < 5) {
+        status.textContent += " Underlaget är ofullständigt; lampans läge ändras inte förrän minst 5 dagar är registrerade.";
+      }
+    } else if (recent.length < 5) {
       status.textContent = "Underlaget är ofullständigt. Registrera fler dagar innan du drar slutsatser.";
       status.classList.add("warn");
-    } else if (avg >= settings.threshold) {
-      status.textContent = "Aktiveringsgränsen är nådd. Överväg en planerad, hållbar justering av vanorna under 14 dagar. Ät tillräckligt och undvik extrema begränsningar.";
-      status.classList.add("warn");
     } else {
-      status.textContent = "Aktiveringsgränsen är inte nådd. Fortsätt med dina vanliga vanor och följ utvecklingen.";
+      status.textContent = "🟢 Ingen åtgärd. Fortsätt med dina vanliga vanor och följ utvecklingen.";
       status.classList.add("good");
     }
+
 
     const history = $("history");
     history.replaceChildren();
@@ -312,6 +344,7 @@ hr { border:0; border-top:1px solid #eee; margin:18px 0; }
 
     $("goal").value = settings.goal;
     $("threshold").value = settings.threshold;
+    $("resetThreshold").value = settings.reset;
     renderChart(entries, settings.goal);
   }
 
@@ -334,26 +367,40 @@ hr { border:0; border-top:1px solid #eee; margin:18px 0; }
     render();
   };
 
-  $("saveSettings").onclick = () => {
+  
+$("saveSettings").onclick = () => {
     const goal = Number($("goal").value);
     const threshold = Number($("threshold").value);
+    const reset = Number($("resetThreshold").value);
+
     if (!Number.isFinite(goal) || goal < 30 || goal > 300 ||
-        !Number.isFinite(threshold) || threshold < 30 || threshold > 300) {
+        !Number.isFinite(threshold) || threshold < 30 || threshold > 300 ||
+        !Number.isFinite(reset) || reset < 30 || reset > 300) {
       $("settingsMessage").textContent = "Ange giltiga vikter mellan 30 och 300 kg.";
       return;
     }
-    localStorage.setItem(SETTINGS_KEY,JSON.stringify({goal,threshold}));
+
+    if (reset >= threshold) {
+      $("settingsMessage").textContent = "Återställningsgränsen måste vara lägre än aktiveringsgränsen.";
+      return;
+    }
+
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({goal, threshold, reset}));
     $("settingsMessage").textContent = "Inställningarna är sparade.";
     render();
   };
 
+
   $("export").onclick = () => {
-    const backup = {
+    
+const backup = {
       format:"viktkoll-backup-v1",
       exportedAt:new Date().toISOString(),
       entries:readEntries(),
-      settings:readSettings()
+      settings:readSettings(),
+      dietActive:localStorage.getItem("viktkoll-diet-aktiv") === "true"
     };
+
     const blob = new Blob([JSON.stringify(backup,null,2)],{type:"application/json"});
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -384,13 +431,27 @@ hr { border:0; border-top:1px solid #eee; margin:18px 0; }
         }
         if (!confirm("Importen ersätter befintliga registreringar och inställningar. Vill du fortsätta?")) return;
         localStorage.setItem(DATA_KEY,JSON.stringify(backup.entries));
-        const s = backup.settings || {};
+       
+const s = backup.settings || {};
+        const goal = validSetting(s.goal,84);
+        const threshold = validSetting(s.threshold,85);
+        let reset = validSetting(s.reset,83);
+        if (reset >= threshold) reset = Math.min(83, threshold - 0.1);
+
         localStorage.setItem(SETTINGS_KEY,JSON.stringify({
-          goal:validSetting(s.goal,84),
-          threshold:validSetting(s.threshold,85)
+          goal,
+          threshold,
+          reset
         }));
+
+        localStorage.setItem(
+          "viktkoll-diet-aktiv",
+          backup.dietActive === true ? "true" : "false"
+        );
+
         $("backupMessage").textContent = "Säkerhetskopian är återställd.";
         render();
+
       } catch {
         $("backupMessage").textContent = "Filen kunde inte läsas. Kontrollera att det är en Viktkoll-säkerhetskopia.";
       }
