@@ -1,0 +1,10 @@
+{
+  "name": "Viktkoll",
+  "short_name": "Viktkoll",
+  "description": "Enkel registrering och uppföljning av vikt.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff"
+}
